@@ -1,0 +1,7 @@
+Codex Capsule 0.1.0
+The authentication protocol and request behavior were adapted from the Doop-derived
+chatgpt-codex-subscription capsule and this workspace's Direct Codex Chat demo.
+Doop source: https://github.com/thezem/doop (GNU AGPL version 3).
+This distribution retains AGPL-3.0-only; it does not include the SIWC devkit.
+AI SDK and @ai-sdk/openai are separate dependencies under Apache-2.0.
+Not affiliated with or endorsed by OpenAI or Vercel.

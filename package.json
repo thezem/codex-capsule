@@ -1,0 +1,62 @@
+{
+  "name": "@hazem/codex-capsule",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ChatGPT device sign-in and Codex models for Vercel AI SDK, with optional customizable auth UI",
+  "type": "module",
+  "license": "AGPL-3.0-only",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./storage": {
+      "types": "./dist/adapters/storage.d.ts",
+      "import": "./dist/adapters/storage.js"
+    },
+    "./http": {
+      "types": "./dist/adapters/http.d.ts",
+      "import": "./dist/adapters/http.js"
+    },
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "import": "./dist/ui/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "docs",
+    "examples",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "capsule.json",
+    "tsconfig.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "prepack": "npm run build"
+  },
+  "peerDependencies": {
+    "ai": "^7.0.130"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^4.0.86",
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.3",
+    "zod": "^4.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thezem/codex-capsule.git"
+  },
+  "homepage": "https://github.com/thezem/codex-capsule#readme"
+}
