@@ -84,6 +84,10 @@ if (session.status === 'connected') {
 
 The user opens the verification page and enters the code. Device-code authorization must be enabled in their ChatGPT security settings. Browser responses contain public connection information, never access or refresh tokens.
 
+## Plug in MCP servers
+
+Connect an MCP server with `@ai-sdk/mcp`, call `await client.tools()`, then pass the result to `codex.chat({ tools })`. See the [MCP integration guide](docs/MCP.md) for connection, authentication, cleanup, and combining tools.
+
 ## Plug in your tools
 
 Tools are ordinary AI SDK tools. No extra registration layer.

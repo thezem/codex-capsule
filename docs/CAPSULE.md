@@ -103,6 +103,10 @@ Tools are ordinary AI SDK tools, no capsule-specific registration. They run in y
 
 `chat` returns a standard AI SDK stream result, including `textStream`, `fullStream`, `steps`, and response helpers. For HTTP UI integration, use the SDK stream response helpers and corresponding AI SDK frontend protocol; the demo uses NDJSON instead. Always handle the error stream and request cancellation. For later turns, persist the full message history including `await result.response`'s `messages` (tool calls/results too), then append the next user message. Persist your own thread IDs and agent definitions; this package doesn't create native Codex threads.
 
+## MCP tools
+
+Use `@ai-sdk/mcp` in your backend and pass `await client.tools()` into `codex.chat({ tools })`. Read [MCP integration](MCP.md) for the complete example and lifecycle/auth guidance.
+
 ## Direct AI SDK use
 
 ```ts
