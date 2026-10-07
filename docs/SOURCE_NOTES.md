@@ -15,3 +15,5 @@ The initial connection was exercised in a local chat prototype, then consolidate
 - [OAuth discovery](https://auth.openai.com/.well-known/openid-configuration): issuer and JWKS location.
 
 This uses the direct Codex backend, rather than the separate official SIWC devkit. Endpoint behavior is verified separately from SDK documentation; neither implies a supported hosted subscription service. See `NOTICE` for retained third-party attribution and `LICENSE` for licensing.
+
+- [Codex service-tier mapping](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/config_types.rs): Fast maps to request value `priority`; explicit Standard uses `default`. Confirmed by direct requests: literal `fast` was rejected with HTTP 400 on 2026-10-07.

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Expose independent reasoning effort and Standard/Fast controls for chat and direct AI SDK models.
+- Apply controls on every transport request, including tool continuations, regardless of SDK model capability tables.
+- Validate control values before inference; document defaults, precedence, and backend tier reporting.
+- Extend live tool/follow-up verification to capture requested controls and effective tier metadata.
+
 ## 0.2.0
 
 - Install directly from GitHub; `prepare` builds ESM and TypeScript declarations automatically.

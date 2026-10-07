@@ -53,3 +53,5 @@ Before claiming a production-ready release, also exercise:
 - Stream cancellation and authorized tools in the target app/deployment.
 
 Distributed/serverless execution and non-text capabilities are not certified by these checks. Current release evidence is documented in `RELIABILITY.md`; passing type checks is not live authentication proof.
+
+The live check requests Fast with medium effort for a tool loop, then Standard with low effort for a follow-up. It asserts the outgoing controls and records backend tier metadata separately in `.artifacts/live.json`. It consumes subscription allowance, including Fast usage. A small successful reply does not establish a latency benchmark.

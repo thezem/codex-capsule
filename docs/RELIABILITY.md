@@ -25,3 +25,17 @@ On 2026-10-07:
 - The README wordmark was rendered and inspected.
 
 Reports are saved under `.artifacts/` when the verification commands run. Real fresh approval and token rotation at OpenAI remain release acceptance work, not claims made by the synthetic harness.
+
+## Control failure modes (before implementation)
+
+- The SDK drops Fast tier for a model unknown to its capability table.
+- Reasoning effort and speed are conflated, or a tool continuation loses either setting.
+- Standard accidentally requests automatic/Fast processing.
+- Invalid control values reach inference instead of failing locally.
+- A requested tier is reported as an effective tier without backend evidence.
+
+Verify outgoing requests across a real tool loop and follow-up; record the backend-reported tier separately.
+
+## 0.3.0 evidence
+
+On 2026-10-07, package/type/distribution checks and all 11 isolated auth/browser scenarios passed. Live GPT-6 Luna and GPT-6.1 Sol tool loops completed with `priority`/medium on both inference steps, then `default`/low on the follow-up. Both models reported effective `serviceTier: default` even for the priority request. Fast routing is requested correctly, but accelerated processing is not verified for this account. No latency benchmark was performed. Luna's follow-up correctly recalled the tool result; Sol's follow-up mentioned 391 but incorrectly denied having called the tool, so that run does not prove faithful tool-history recall.

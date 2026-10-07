@@ -6,7 +6,7 @@
 npm install git+https://github.com/thezem/codex-capsule.git ai@^7 zod
 ```
 
-Git installs invoke `prepare` to compile the package automatically. While private, authenticate Git using `gh auth setup-git`. Pin a tag/commit using `#v0.2.0` or `#<commit>` when you need a fixed version. Keep Node backend imports separate from `/ui` browser imports.
+Git installs invoke `prepare` to compile the package automatically. While private, authenticate Git using `gh auth setup-git`. Pin a tag/commit using `#v0.3.0` or `#<commit>` when you need a fixed version. Keep Node backend imports separate from `/ui` browser imports.
 
 ## 1. Create one backend instance
 
@@ -127,9 +127,48 @@ Use streaming operations with this backend. `generateText` is not supported by t
 - OAuth client: observed Codex client `app_EMoamEEZ73f0CkXaXp7hrann`
 - model catalog version: `0.159.2` (request metadata, no CLI dependency)
 - inference timeout: 180 seconds; auth HTTP timeout: 30 seconds
-- chat: low reasoning effort, five steps, no automatic retries
+- chat: Standard speed, low reasoning effort, five steps, no automatic retries
 - `models(userId, { includeHidden: true })` can inspect the full catalog; hidden entries are not proof of callable models
 
 Capsule owns OAuth device polling, verified ID-token identity claims, refresh coordination in one process, Codex request normalization, and AI SDK integration. It forces `stream: true` and `store: false`, adds fallback instructions, and removes `max_output_tokens`, which this backend rejects. `store: false` is API response storage behavior, not a zero-retention promise.
 
 Host owns app authentication, persistent encryption key, storage, routes, authorized tools, conversation persistence, and deployment. Node 22+, network egress to auth.openai.com and chatgpt.com, and a long-lived process are needed. Device state and refresh locks are process-local; serverless restarts or multiple replicas require another coordination layer. This doesn't bundle a CLI, desktop app, platform keyring, or Codex workspace engine.
+
+## Reasoning and speed
+
+Control thinking effort and processing speed independently:
+
+```ts
+const result = codex.chat({
+  userId,
+  model: selectedModel,
+  messages,
+  tools: yourTools,
+  reasoningEffort: 'medium',
+  speed: 'fast',
+});
+```
+
+`reasoningEffort`: `none`, `low`, `medium`, `high`, `xhigh`, `max`.
+`speed`: `standard` or `fast`. Chat defaults to `low` and `standard`.
+The selected model must support the requested effort and tier. Fast availability depends on the account/model and uses more subscription allowance.
+
+Using AI SDK directly:
+
+```ts
+const model = codex.model(userId, selectedModel, {
+  reasoningEffort: 'high',
+  speed: 'standard',
+});
+const result = streamText({ model, messages, tools: yourTools });
+```
+
+Model controls are applied on every request, including tool continuations. Explicit model controls take precedence over conflicting AI SDK provider options. `codex.model()` defaults to Standard; when its effort is omitted, AI SDK provider options/backend defaults determine effort.
+
+Standard sends `service_tier: "default"`; Fast sends `service_tier: "priority"`. A request is not proof of the tier actually served: inspect `await result.providerMetadata` and its `openai.serviceTier` when supplied by the backend. An unavailable tier can be rejected or changed by the backend; the capsule does not retry silently with another tier.
+
+See [OpenAI speed documentation](https://developers.openai.com/codex/speed).
+
+## Personal hosted storage
+
+OAuth itself does not require encrypted storage. You can supply your own `AccountStore`; the bundled file adapter requires encryption. For a personal hosted app, keep that protection: store the encryption key in your hosting provider's secret settings, separately from credential files/backups. Keep credentials server-side and your app access private. Encryption protects copied credential files; it does not protect against an attacker who controls the running server and its key.

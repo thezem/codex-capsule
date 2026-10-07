@@ -37,7 +37,7 @@ npm install git+https://github.com/thezem/codex-capsule.git ai@^7 zod
 
 The package builds automatically during installation. No manual clone, build, or archive step.
 
-While this repository is private, authenticate Git first (`gh auth setup-git`). Once public, the same command works without private-repo access. You can pin a release or commit by appending `#v0.2.0` or `#<commit>` to the Git URL.
+While this repository is private, authenticate Git first (`gh auth setup-git`). Once public, the same command works without private-repo access. You can pin a release or commit by appending `#v0.3.0` or `#<commit>` to the Git URL.
 
 Requires **Node.js 22+** and **AI SDK 7**. `zod` is used for tool schemas in the examples; another AI SDK-compatible schema format also works. The package has not been published to the npm registry.
 
@@ -218,3 +218,44 @@ This adapter uses the direct internal Codex backend, which can change. It enforc
 ## License
 
 **AGPL-3.0-only**. See [LICENSE](LICENSE), [NOTICE](NOTICE), and [source notes](docs/SOURCE_NOTES.md). AI SDK dependencies carry their own licenses. The code license does not grant permission to use OpenAI services outside their terms.
+
+## Reasoning and speed
+
+Control thinking effort and processing speed independently:
+
+```ts
+const result = codex.chat({
+  userId,
+  model: selectedModel,
+  messages,
+  tools: yourTools,
+  reasoningEffort: 'medium',
+  speed: 'fast',
+});
+```
+
+`reasoningEffort`: `none`, `low`, `medium`, `high`, `xhigh`, `max`.
+`speed`: `standard` or `fast`. Chat defaults to `low` and `standard`.
+The selected model must support the requested effort and tier. Fast availability depends on the account/model and uses more subscription allowance.
+
+Using AI SDK directly:
+
+```ts
+const model = codex.model(userId, selectedModel, {
+  reasoningEffort: 'high',
+  speed: 'standard',
+});
+const result = streamText({ model, messages, tools: yourTools });
+```
+
+Model controls are applied on every request, including tool continuations. Explicit model controls take precedence over conflicting AI SDK provider options. `codex.model()` defaults to Standard; when its effort is omitted, AI SDK provider options/backend defaults determine effort.
+
+Standard sends `service_tier: "default"`; Fast sends `service_tier: "priority"`. A request is not proof of the tier actually served: inspect `await result.providerMetadata` and its `openai.serviceTier` when supplied by the backend. An unavailable tier can be rejected or changed by the backend; the capsule does not retry silently with another tier.
+
+See [OpenAI speed documentation](https://developers.openai.com/codex/speed).
+
+## Personal hosted storage
+
+OAuth itself does not require encrypted storage. You can supply your own `AccountStore`; the bundled file adapter requires encryption. For a personal hosted app, keep that protection: store the encryption key in your hosting provider's secret settings, separately from credential files/backups. Keep credentials server-side and your app access private. Encryption protects copied credential files; it does not protect against an attacker who controls the running server and its key.
+
+Live control verification (2026-10-07): GPT-6 Luna and GPT-6.1 Sol accepted priority requests and executed tools, but reported effective `default` tier. The Fast control requests priority routing; accelerated processing for the tested account remains unconfirmed.

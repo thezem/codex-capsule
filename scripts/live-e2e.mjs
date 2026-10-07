@@ -7,14 +7,19 @@ const directory=process.env.CODEX_ACCOUNT_DIRECTORY, keyFile=process.env.CODEX_K
 if(!directory||!keyFile||!userId)throw Error('Set CODEX_ACCOUNT_DIRECTORY, CODEX_KEY_FILE, and CODEX_USER_ID. See docs/VERIFY.md.');
 const keyText=(await readFile(keyFile,'utf8')).trim();const key=Buffer.from(keyText,'base64');
 const store=createEncryptedFileStore({directory,encryption:createAesEncryption(key),...(process.env.CODEX_ACCOUNT_FILENAME?{singleAccount:{userId,filename:process.env.CODEX_ACCOUNT_FILENAME}}:{})});
-const codex=createCodex({store});
+const requests=[];
+const codex=createCodex({store,fetch:async(url,init)=>{
+ if(String(url).endsWith('/responses')){const body=JSON.parse(init.body);requests.push({model:body.model,speed:body.service_tier,effort:body.reasoning?.effort});}
+ return fetch(url,init);
+}});
 try{
  const models=await codex.models(userId);const model=process.env.CODEX_MODEL||models[0]?.slug;if(!model)throw Error('No model is available.');
  const calls=[];const tools={multiply:tool({description:'Multiply two numbers.',inputSchema:z.object({a:z.number(),b:z.number()}),execute:async({a,b})=>{const result={answer:a*b};calls.push({a,b,...result});return result;}})};
- async function collect(result){let text='';const events=[];for await(const part of result.fullStream){if(part.type==='error')throw part.error;if(part.type==='text-delta')text+=part.text;if(part.type==='tool-call')events.push({type:part.type,name:part.toolName,input:part.input});if(part.type==='tool-result')events.push({type:part.type,name:part.toolName,output:part.output});}return{text,events,messages:(await result.response).messages};}
+ async function collect(result){let text='';const events=[];for await(const part of result.fullStream){if(part.type==='error')throw part.error;if(part.type==='text-delta')text+=part.text;if(part.type==='tool-call')events.push({type:part.type,name:part.toolName,input:part.input});if(part.type==='tool-result')events.push({type:part.type,name:part.toolName,output:part.output});}return{text,events,messages:(await result.response).messages,metadata:await result.providerMetadata};}
  const history=[{role:'user',content:'Call multiply for 17 times 23, then tell me the result.'}];
- const first=await collect(codex.chat({userId,model,messages:history,tools}));assert(calls.length);assert(first.text.includes('391'));
- const followup=await collect(codex.chat({userId,model,messages:[...history,...first.messages,{role:'user',content:'What did the tool return? Do not call it again.'}],tools}));assert(followup.text.includes('391'));
- const report={provider:'live OpenAI Codex',model,models:models.map(m=>m.slug),first:{text:first.text,events:first.events},followup:{text:followup.text,events:followup.events},calls};
+ const first=await collect(codex.chat({userId,model,messages:history,tools,speed:'fast',reasoningEffort:'medium'}));assert(calls.length);assert(first.text.includes('391'));
+ const followup=await collect(codex.chat({userId,model,messages:[...history,...first.messages,{role:'user',content:'What did the tool return? Do not call it again.'}],tools,speed:'standard',reasoningEffort:'low'}));assert(followup.text.includes('391'));
+ assert(requests.length>=3);assert(requests.slice(0,-1).every(r=>r.speed==='priority'&&r.effort==='medium'));assert.equal(requests.at(-1).speed,'default');assert.equal(requests.at(-1).effort,'low');
+ const report={requests,provider:'live OpenAI Codex',model,models:models.map(m=>m.slug),first:{text:first.text,events:first.events,metadata:first.metadata},followup:{text:followup.text,events:followup.events,metadata:followup.metadata},calls};
  await mkdir('.artifacts',{recursive:true});await writeFile('.artifacts/live.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{codex.dispose();}

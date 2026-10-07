@@ -6,7 +6,14 @@ import type { CodexConfig, CodexModel } from './types.js';
 export type { Account, AccountStore, AuthSession, CodexConfig, CodexModel, Encryption } from './types.js';
 export { tool, stepCountIs } from 'ai';
 
-export interface ChatOptions<T extends ToolSet> {
+export type ReasoningEffort = 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type CodexSpeed = 'standard' | 'fast';
+export interface ModelControls {
+  reasoningEffort?: ReasoningEffort;
+  speed?: CodexSpeed;
+}
+
+export interface ChatOptions<T extends ToolSet> extends ModelControls {
   userId: string;
   model: string;
   messages: ModelMessage[];
@@ -14,7 +21,6 @@ export interface ChatOptions<T extends ToolSet> {
   instructions?: string;
   signal?: AbortSignal;
   maxSteps?: number;
-  reasoningEffort?: 'none' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 }
 
 export function createCodex(config: CodexConfig) {
@@ -32,7 +38,12 @@ export function createCodex(config: CodexConfig) {
     ...(account.accountId ? { 'chatgpt-account-id': account.accountId } : {}),
     originator: 'codex_cli_rs',
   });
-  function model(userId: string, slug: string) {
+  function model(userId: string, slug: string, controls: ModelControls = {}) {
+    if (controls.speed !== undefined && !['standard', 'fast'].includes(controls.speed)) throw new Error('speed must be standard or fast.');
+    if (controls.reasoningEffort !== undefined && !['none', 'low', 'medium', 'high', 'xhigh', 'max'].includes(controls.reasoningEffort)) throw new Error('Invalid reasoningEffort.');
+    // Capture controls so caller mutation cannot change later tool steps.
+    const speed = controls.speed ?? 'standard';
+    const reasoningEffort = controls.reasoningEffort;
     if (!requireUser(userId) || !slug) throw new Error('userId and model are required.');
     return createOpenAI({ baseURL: endpoint, apiKey: 'provided-by-capsule', fetch: async (_url, init) => {
       const signal = init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
@@ -44,6 +55,9 @@ export function createCodex(config: CodexConfig) {
       request.instructions ||= 'Answer clearly and helpfully.';
       request.store = false; request.stream = true;
       delete request.max_output_tokens;
+      // Apply at the transport boundary: SDK capability tables can lag the live catalog.
+      request.service_tier = speed === 'fast' ? 'priority' : 'default';
+      if (reasoningEffort !== undefined) request.reasoning = { ...request.reasoning, effort: reasoningEffort };
       const response = await fetcher(`${endpoint}/responses`, {
         method: 'POST', redirect: 'error', signal,
         headers: { ...authHeaders(account), 'Content-Type': 'application/json', Accept: 'text/event-stream',
@@ -83,7 +97,7 @@ export function createCodex(config: CodexConfig) {
       const maxSteps = options.maxSteps ?? 5;
       if (!Number.isInteger(maxSteps) || maxSteps < 1 || maxSteps > 100) throw new Error('maxSteps must be 1–100.');
       return streamText({
-        model: model(options.userId, options.model), messages: options.messages,
+        model: model(options.userId, options.model, { speed: options.speed, reasoningEffort: options.reasoningEffort ?? 'low' }), messages: options.messages,
         system: options.instructions ?? 'Answer clearly and helpfully.', tools: options.tools,
         abortSignal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
         stopWhen: stepCountIs(maxSteps), maxRetries: 0,
