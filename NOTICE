@@ -1,4 +1,4 @@
-Codex Capsule 0.1.0
+Codex Capsule 0.2.0
 The authentication protocol and request behavior were adapted from the Doop-derived
 chatgpt-codex-subscription capsule and this workspace's Direct Codex Chat demo.
 Doop source: https://github.com/thezem/doop (GNU AGPL version 3).

@@ -35,7 +35,7 @@ export class Auth {
     this.devices.set(userId, device);
     try {
       const res = await this.deviceRequest('/deviceauth/usercode', { client_id: this.clientId }, device.controller.signal);
-      if (!res.ok) throw new Error(`Could not start ChatGPT sign-in (${res.status}). Enable device-code authorization in ChatGPT security settings.`);
+      if (!res.ok) { await res.body?.cancel(); throw new Error(`Could not start ChatGPT sign-in (${res.status}). Enable device-code authorization in ChatGPT security settings.`); }
       const body = await res.json() as { device_auth_id?: string; user_code?: string; usercode?: string; interval?: number };
       const code = body.user_code || body.usercode;
       if (!code || !body.device_auth_id) throw new Error('ChatGPT returned no device code.');
@@ -57,10 +57,10 @@ export class Auth {
         let res: Response;
         try { res = await this.deviceRequest('/deviceauth/token', { device_auth_id: id, user_code: code }, device.controller.signal); }
         catch (error) { if (!this.live(userId, device)) return; continue; }
-        if (res.status === 429 || res.status >= 500) continue;
+        if (res.status === 429 || res.status >= 500) { await res.body?.cancel(); continue; }
         if (!this.live(userId, device)) return;
-        if (res.status === 403 || res.status === 404) continue;
-        if (!res.ok) throw new Error(`ChatGPT rejected sign-in (${res.status}).`);
+        if (res.status === 403 || res.status === 404) { await res.body?.cancel(); continue; }
+        if (!res.ok) { await res.body?.cancel(); throw new Error(`ChatGPT rejected sign-in (${res.status}).`); }
         const granted = await res.json() as { authorization_code?: string; code_verifier?: string };
         if (!granted.authorization_code || !granted.code_verifier) throw new Error('ChatGPT returned incomplete approval.');
         const token = await this.token({ grant_type: 'authorization_code', client_id: this.clientId, code: granted.authorization_code,
@@ -113,7 +113,7 @@ export class Auth {
   private async token(form: Record<string, string>, signal?: AbortSignal): Promise<TokenBody> {
     const res = await this.fetcher(`${this.issuer}/oauth/token`, { method: 'POST', redirect: 'error', signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(30000)]) : AbortSignal.timeout(30000),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: new URLSearchParams(form) });
-    if (!res.ok) throw new Error(`ChatGPT token request failed (${res.status}); reconnect if it persists.`);
+    if (!res.ok) { await res.body?.cancel(); throw new Error(`ChatGPT token request failed (${res.status}); reconnect if it persists.`); }
     return await res.json() as TokenBody;
   }
   dispose() { for (const userId of this.devices.keys()) this.cancel(userId); }
