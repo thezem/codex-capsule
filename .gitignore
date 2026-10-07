@@ -5,3 +5,6 @@ dist/
 .env.*
 private-accounts/
 *.log
+.artifacts/
+*.key
+*.pem

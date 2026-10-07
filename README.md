@@ -1,6 +1,8 @@
+![Codex Capsule — Your account. Your tools. Your agents.](assets/wordmark.svg)
+
 # Codex Capsule
 
-**Connect a ChatGPT account. Choose a Codex model. Pass in your tools.**
+**ChatGPT sign-in and Codex models for the agents you build.**
 
 A small TypeScript package that connects your app to the Codex model backend using ChatGPT sign-in, with Vercel AI SDK handling streaming and tool execution. Includes a customizable authentication UI for plain JavaScript, React, Vue, or Svelte.
 
@@ -27,34 +29,26 @@ Codex model backend
 
 Your app owns its users, conversation history, agent configurations, and the code each tool executes. Credentials stay on the backend.
 
-## Install
-
-This repository is private. Authenticate with GitHub before cloning.
+## Install from GitHub
 
 ```bash
-gh repo clone thezem/codex-capsule
-cd codex-capsule
-npm ci
-npm run build
-npm pack
+npm install git+https://github.com/thezem/codex-capsule.git ai@^7 zod
 ```
 
-Then install the archive in your app:
+The package builds automatically during installation. No manual clone, build, or archive step.
 
-```bash
-npm install /path/to/codex-capsule/hazem-codex-capsule-0.1.0.tgz ai@^7 zod
-```
+While this repository is private, authenticate Git first (`gh auth setup-git`). Once public, the same command works without private-repo access. You can pin a release or commit by appending `#v0.2.0` or `#<commit>` to the Git URL.
 
-Requires **Node.js 22+** and **AI SDK 7**. `zod` is used in the examples for tool inputs; you can use another schema format supported by AI SDK.
+Requires **Node.js 22+** and **AI SDK 7**. `zod` is used for tool schemas in the examples; another AI SDK-compatible schema format also works. The package has not been published to the npm registry.
 
 ## Create the backend connection
 
 ```ts
-import { createCodex } from '@hazem/codex-capsule';
+import { createCodex } from '@thezem/codex-capsule';
 import {
   createAesEncryption,
   createEncryptedFileStore,
-} from '@hazem/codex-capsule/storage';
+} from '@thezem/codex-capsule/storage';
 
 // Load a stable 32-byte key from your keyring or secret manager.
 const key = await yourSecretManager.getBytes('codex-credentials');
@@ -95,7 +89,7 @@ The user opens the verification page and enters the code. Device-code authorizat
 Tools are ordinary AI SDK tools. No extra registration layer.
 
 ```ts
-import { tool } from '@hazem/codex-capsule';
+import { tool } from '@thezem/codex-capsule';
 import { z } from 'zod';
 
 const tools = {
@@ -146,7 +140,7 @@ Use streaming operations with this backend; `generateText` is not supported by t
 First mount the included Fetch handler on your backend:
 
 ```ts
-import { createAuthHandler } from '@hazem/codex-capsule/http';
+import { createAuthHandler } from '@thezem/codex-capsule/http';
 
 const handleAuth = createAuthHandler({
   codex,
@@ -161,7 +155,7 @@ Route `/api/codex/*` requests to `handleAuth`. It accepts a standard Web `Reques
 import {
   createAuthTransport,
   mountCodexAuth,
-} from '@hazem/codex-capsule/ui';
+} from '@thezem/codex-capsule/ui';
 
 const panel = mountCodexAuth(document.querySelector('#auth')!, {
   transport: createAuthTransport({ baseURL: '/api/codex' }),
@@ -190,10 +184,10 @@ The component uses Shadow DOM and works with any framework that can mount a DOM 
 
 | Entry point | Exports |
 | --- | --- |
-| `@hazem/codex-capsule` | `createCodex`, `tool`, `stepCountIs`, public types |
-| `@hazem/codex-capsule/storage` | `createEncryptedFileStore`, `createAesEncryption` |
-| `@hazem/codex-capsule/http` | `createAuthHandler` |
-| `@hazem/codex-capsule/ui` | `mountCodexAuth`, `createAuthTransport` |
+| `@thezem/codex-capsule` | `createCodex`, `tool`, `stepCountIs`, public types |
+| `@thezem/codex-capsule/storage` | `createEncryptedFileStore`, `createAesEncryption` |
+| `@thezem/codex-capsule/http` | `createAuthHandler` |
+| `@thezem/codex-capsule/ui` | `mountCodexAuth`, `createAuthTransport` |
 
 Keep the root, storage, and HTTP imports on the backend. Import only `/ui` in browser code.
 
@@ -205,16 +199,22 @@ Keep the root, storage, and HTTP imports on the backend. Import only `/ui` in br
 - [Prompt for integrating into another app](docs/APPLY_PROMPT.md)
 - [Tool example](examples/tools.ts), [backend example](examples/backend.ts), [auth UI example](examples/auth-ui.ts)
 
-## Verification and current limits
+## Reliability and limits
 
-The package built and installed in a separate consumer folder. Live checks exercised model discovery, streaming chat, a supplied function tool, and a follow-up using full tool history. Browser checks exercised the actual device code, copy button, cancellation, and customizable auth component.
+```bash
+npm ci
+npm run verify
+npm run verify:auth
+```
 
-**Fresh sign-in completion after the auth rewrite and actual token rotation remain unverified.** The acceptance checks are documented in [VERIFY.md](docs/VERIFY.md).
+The auth suite exercises HTTP authentication and the browser UI against an isolated protocol harness; the opt-in live suite exercises a real model and tools. See [verification instructions](docs/VERIFY.md) and [reliability notes](docs/RELIABILITY.md).
 
-The included file store and auth coordination are designed for a single long-lived backend process. Multiple replicas or serverless restarts require shared coordination. Conversations and agent definitions belong to your app; this package does not create native Codex threads.
+Live checks have exercised model discovery, streaming, caller-supplied tools, and tool-history follow-ups. Fresh approval and real token rotation after the auth implementation changes still need verification with OpenAI. The protocol harness is not a substitute for that evidence.
 
-The adapter uses the direct internal Codex backend, which can change. It enforces `stream: true` and `store: false`; the latter controls API response storage and is not a zero-retention guarantee. This is not the official Sign in with ChatGPT devkit or a guarantee of support for hosted subscription services.
+The included file store and auth coordination target a single long-lived backend process. Multiple replicas or serverless restarts require shared coordination. Your app saves conversations and agent definitions; native Codex threads are outside this package.
+
+This adapter uses the direct internal Codex backend, which can change. It enforces `stream: true` and `store: false`; the latter controls API response storage, not zero retention. It is unaffiliated with OpenAI and Vercel.
 
 ## License
 
-**AGPL-3.0-only**, retained from the Doop-derived source. See [LICENSE](LICENSE), [NOTICE](NOTICE), and [source notes](docs/SOURCE_NOTES.md). AI SDK dependencies carry their own licenses. The code license does not grant permission to use OpenAI services outside their terms.
+**AGPL-3.0-only**. See [LICENSE](LICENSE), [NOTICE](NOTICE), and [source notes](docs/SOURCE_NOTES.md). AI SDK dependencies carry their own licenses. The code license does not grant permission to use OpenAI services outside their terms.

@@ -22,7 +22,7 @@ export function createAuthTransport(options: {
 }
 export interface AuthUIOptions {
   transport: AuthTransport;
-  labels?: Partial<Record<'title' | 'description' | 'connect' | 'waiting' | 'open' | 'copy' | 'copied' | 'cancel' | 'disconnect' | 'connected' | 'retry' | 'settings', string>>;
+  labels?: Partial<Record<'title' | 'description' | 'connect' | 'waiting' | 'open' | 'copy' | 'copied' | 'cancel' | 'disconnect' | 'connected' | 'retry' | 'settings' | 'copyFallback' | 'codeLabel', string>>;
   theme?: Partial<Record<'accent' | 'background' | 'surface' | 'text' | 'muted' | 'radius' | 'font', string>>;
   pollMs?: number;
   onChange?: (session: AuthSession) => void;
@@ -31,6 +31,7 @@ const defaults = {
   title: 'Connect your ChatGPT account', description: 'Sign in to choose a model and start chatting.',
   connect: 'Continue with ChatGPT', waiting: 'Waiting for sign-in…', open: 'Open sign-in page',
   copy: 'Copy code', copied: 'Copied', cancel: 'Cancel', disconnect: 'Disconnect', connected: 'ChatGPT connected',
+  copyFallback: 'Selected — press Ctrl+C or ⌘C', codeLabel: 'Sign-in code',
   retry: 'Try again', settings: 'Device-code authorization must be enabled in your ChatGPT security settings.',
 };
 
@@ -55,7 +56,7 @@ export function mountCodexAuth(element: HTMLElement, options: AuthUIOptions) {
   root.replaceChildren(style);
   for (const [name, value] of Object.entries(options.theme ?? {})) element.style.setProperty(`--codex-${name}`, value!);
   const section = document.createElement('section'); section.setAttribute('part', 'panel'); root.append(section);
-  let disposed = false, busy = false, timer: ReturnType<typeof setTimeout> | undefined;
+  let disposed = false, busy = true, timer: ReturnType<typeof setTimeout> | undefined;
   let revision = 0;
   let session: AuthSession = { status: 'disconnected' }, error = '', signature = '';
   const append = (tag: string, text: string, parent: HTMLElement = section, part?: string) => {
@@ -83,10 +84,10 @@ export function mountCodexAuth(element: HTMLElement, options: AuthUIOptions) {
         if (session.code) {
           const row = append('div', '', section, 'code-row'); row.className = 'code';
           const input = append('input', '', row, 'code') as HTMLInputElement;
-          input.readOnly = true; input.value = session.code; input.setAttribute('aria-label', 'Sign-in code'); input.onclick = () => input.select();
+          input.readOnly = true; input.value = session.code; input.setAttribute('aria-label', labels.codeLabel); input.onclick = () => input.select();
           button(labels.copy, async () => {
             try { await navigator.clipboard.writeText(session.code!); copied.textContent = labels.copied; }
-            catch { input.focus(); input.select(); copied.textContent = 'Selected — press Ctrl+C or ⌘C'; }
+            catch { input.focus(); input.select(); copied.textContent = labels.copyFallback; }
           }, row);
           const copied = append('span', '', row, 'copy-status'); copied.setAttribute('role', 'status');
         }
@@ -106,6 +107,7 @@ export function mountCodexAuth(element: HTMLElement, options: AuthUIOptions) {
   };
   const accept = (next: AuthSession) => {
     if (disposed) return;
+    error = '';
     const changed = JSON.stringify(session) !== JSON.stringify(next); session = next;
     render(); if (changed) options.onChange?.(session); schedule();
   };
@@ -119,6 +121,6 @@ export function mountCodexAuth(element: HTMLElement, options: AuthUIOptions) {
     const ownRevision = ++revision;
     try { const next = await options.transport.session(); if (ownRevision === revision) accept(next); } catch (e) { if (ownRevision === revision && !disposed) { error = e instanceof Error ? e.message : 'Could not check connection.'; render(); schedule(); } }
   }
-  render(); void refresh();
+  render(); busy = false; void act(() => options.transport.session());
   return { refresh, destroy() { disposed = true; clearTimeout(timer); root.replaceChildren(); } };
 }

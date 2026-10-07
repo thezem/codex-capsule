@@ -1,5 +1,5 @@
 {
-  "name": "@hazem/codex-capsule",
+  "name": "@thezem/codex-capsule",
   "kind": "repo-capsule",
   "runtime": "Node.js >=22, browser UI optional",
   "language": "TypeScript",
@@ -10,7 +10,7 @@
     "env": [],
     "infrastructure": ["encrypted AccountStore", "persistent encryption key", "authenticated app user IDs", "long-lived backend process", "OpenAI network access"]
   },
-  "verification": { "commands": ["npm run check", "npm pack", "node verification/ai-sdk-e2e.mjs (parent demo)"], "expectedSignals": ["installable tarball", "live streamed chat", "tool result followed by model reply", "customizable code-copy UI"] },
+  "verification": { "commands": ["npm run check", "npm pack", "npm run verify:auth", "npm run verify:live"], "expectedSignals": ["installable tarball", "live streamed chat", "tool result followed by model reply", "customizable code-copy UI"] },
   "license": "AGPL-3.0-only",
   "limitations": ["private Codex backend", "process-local device/refresh coordination", "no native Codex threads", "streaming model operations only"]
 }

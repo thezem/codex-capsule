@@ -1,53 +1,55 @@
-# Verify the package
+# Verification
 
-Before isolated checks, the relevant failure modes are: package omits exports; browser entry imports Node code; account or key leaks into distribution; code/URL does not render or copy; stale polling overwrites a newer sign-in; cancellation still saves a token; expired credentials fail refresh; one user's calls select another account; assistant/tool history serializes incorrectly; tool output never reaches a second step; a broken/aborted stream reports success; wrong-origin writes work.
-
-## Build and distribution
+## Package and GitHub install
 
 ```bash
-npm install
-npm run check
+npm ci
+npm run verify
 npm pack
 ```
 
-Install the tarball into a separate empty folder with `ai@^7` and `zod`. Import the root, `/storage`, `/http`, and `/ui` entries. The `/ui` entry may be imported in Node without accessing DOM until mount; it contains no backend imports. Inspect tar contents: no credentials, environment files, keyring values, parent vendor directories, or node_modules.
-
-## Historical demo integration (demo host not included)
-
-The extraction was verified in a separate demo workspace using the commands below. These are provenance for the original live checks, not commands runnable in this standalone repository. For a new app, follow the acceptance steps in the next section.
-
-In the original parent demo workspace:
+`verify` checks types, compiled package exports, examples, browser/backend separation, and the packed file list. GitHub installation invokes `prepare` to build exports. For a clean consumer:
 
 ```bash
-npm run build --prefix packages/codex-capsule
-npm run start:doop
-node verification/ai-sdk-e2e.mjs
+mkdir capsule-consumer
+cd capsule-consumer
+npm init -y
+npm install git+https://github.com/thezem/codex-capsule.git ai@^7 zod
+node --input-type=module -e "import('@thezem/codex-capsule').then(m => console.log(typeof m.createCodex))"
 ```
 
-Expected: real plain reply; assistant history remembers apricot; `getCurrentTime` tool-call and tool-result events; final reply uses the clock output. Evidence is written to `verification/ai-sdk-e2e.json`. This consumes the package API through the HTTP demo, not a mock provider.
+While the repo is private, Git must be authenticated. `gh auth setup-git` configures the GitHub CLI credential helper. Never put access tokens in the URL. Once public, this same URL works without private-repository access.
 
-Open `http://127.0.0.1:4398/capsule.html` to inspect the package UI. Switch Warm/Dark/Plain. When disconnected, start sign-in, copy the code, open the verification link, approve, and confirm connected state. Cancelling before approval should leave any existing connection untouched. To avoid disturbing your main account, use a dedicated temporary user/store for disconnect checks.
+## Auth and UI E2E
 
-## New-app acceptance
+```bash
+npm run verify:auth
+```
 
-Use the same actual installed tarball and a real backend account store. Verify:
+Uses a temporary HTTPS provider/app harness with signed identity tokens, actual HTTP routes, encrypted on-disk credentials, and an isolated headless browser. Requires OpenSSL and system Chrome or Playwright Chromium. It covers login/approval, expired-token refresh, concurrent refresh, cancellation, disconnect races, origin protection, two-user isolation, and the browser auth component. Temporary accounts are deleted at completion. Reports/screenshots go to `.artifacts/` and are ignored by Git.
 
-1. Device sign-in and approval; connected identity; no token in browser HTTP replies.
-2. Restart with the same encryption key and stored account; list models and chat.
-3. Live function-tool execution followed by a model reply using its output; save full tool history and ask a follow-up.
-4. Abort an active stream; completion isn't claimed; backend becomes available for a new request.
-5. Expired account refreshes once; refresh failure asks for reconnection. Don't force-expire or rotate a shared production account just for a check.
-6. Cancel/disconnect while approval/refresh is in progress; no late reconnection.
-7. Two independent accounts don't share credentials, conversations, or tools; wrong-origin mutation receives 403 and unauthenticated request receives 401.
+**This harness proves lifecycle behavior against the exercised protocol, not fresh approval or rotation at OpenAI.**
 
-Checks 1, 5, 6, and 7 need explicit live evidence for the target deployment. The included package's current verification report identifies what was exercised and what remains untested. Type checking is not E2E proof.
+## Live model and tool E2E
 
-## Debugging
+Use an independently connected account in the included encrypted store format. Put the 32-byte key in a file readable only by you, or adapt the script to your keyring. Paths are configuration; credentials are not printed.
 
-- Device start refused: enable device-code authorization in ChatGPT security settings; server egress may also be blocked.
-- Credential file won't unlock: restore the exact persistent key/keyring and directory; don't silently overwrite it.
-- 401/403 inference: reconnect that account.
-- 429: wait for account usage limits; don't retry automatically in a tool loop.
-- Missing models: inspect the actual live catalog; the package does not hardcode model names.
-- Invalid history: pass AI SDK `ModelMessage[]`, keeping full tool call/result messages.
-- UI mutation 403: verify public origin, app session, and any CSRF header.
+```bash
+CODEX_ACCOUNT_DIRECTORY=/absolute/private-accounts \
+CODEX_KEY_FILE=/absolute/private-key \
+CODEX_USER_ID=your-app-user \
+npm run verify:live
+```
+
+Optional migration settings: `CODEX_ACCOUNT_FILENAME` for a single existing file; `CODEX_MODEL` to select a catalog model. The default picks the first visible model. The script lists models, asks the model to call a supplied multiply tool, then passes full tool history into a follow-up. It saves `.artifacts/live.json` with outputs and events, never tokens. This consumes real account usage.
+
+## Release acceptance
+
+Before claiming a production-ready release, also exercise:
+
+- Fresh ChatGPT approval and identity verification on the real issuer.
+- Actual expired-token rotation and reconnection after provider errors.
+- Restart with the same store/key and an independent second real account.
+- Stream cancellation and authorized tools in the target app/deployment.
+
+Distributed/serverless execution and non-text capabilities are not certified by these checks. Current release evidence is documented in `RELIABILITY.md`; passing type checks is not live authentication proof.

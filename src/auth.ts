@@ -2,13 +2,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { createRemoteJWKSet, jwtVerify, customFetch } from 'jose';
 import type { Account, AccountStore, AuthSession } from './types.js';
 
-interface Device { epoch: number; controller: AbortController; session: AuthSession }
+interface Device { controller: AbortController; session: AuthSession }
 interface TokenBody { access_token?: string; refresh_token?: string; id_token?: string; expires_in?: number }
 
 /** Authentication state is owned by one process. No browser sees a token. */
 export class Auth {
   private devices = new Map<string, Device>();
-  private epochs = new Map<string, number>();
   private refreshes = new Map<string, Promise<Account>>();
   private writes = new Map<string, Promise<unknown>>();
   private jwks: ReturnType<typeof createRemoteJWKSet>;
@@ -27,13 +26,12 @@ export class Auth {
     return account ? { status: 'connected', identity: { email: account.email, plan: account.plan } } : { status: 'disconnected' };
   }
   cancel(userId: string) {
-    this.epochs.set(userId, (this.epochs.get(userId) ?? 0) + 1);
     this.devices.get(userId)?.controller.abort(); this.devices.delete(userId);
   }
   async disconnect(userId: string) { this.cancel(userId); await this.write(userId, () => this.store.delete(userId)); }
   async start(userId: string): Promise<AuthSession> {
     this.cancel(userId);
-    const device: Device = { epoch: this.epochs.get(userId)!, controller: new AbortController(), session: { status: 'connecting' } };
+    const device: Device = { controller: new AbortController(), session: { status: 'connecting' } };
     this.devices.set(userId, device);
     try {
       const res = await this.deviceRequest('/deviceauth/usercode', { client_id: this.clientId }, device.controller.signal);
@@ -43,7 +41,7 @@ export class Auth {
       if (!code || !body.device_auth_id) throw new Error('ChatGPT returned no device code.');
       if (!this.live(userId, device)) throw new Error('Sign-in cancelled.');
       device.session = { status: 'connecting', code, url: `${this.issuer}/codex/device` };
-      void this.poll(userId, device, body.device_auth_id, code, Math.max(1, Number(body.interval) || 5) * 1000);
+      void this.poll(userId, device, body.device_auth_id, code, Math.min(60, Math.max(1, Number.isFinite(body.interval) ? Number(body.interval) : 5)) * 1000);
       return { ...device.session };
     } catch (e) {
       if (this.live(userId, device)) this.devices.delete(userId);
@@ -56,7 +54,10 @@ export class Auth {
     try {
       while (this.live(userId, device) && Date.now() < until) {
         await delay(interval, undefined, { signal: device.controller.signal });
-        const res = await this.deviceRequest('/deviceauth/token', { device_auth_id: id, user_code: code }, device.controller.signal);
+        let res: Response;
+        try { res = await this.deviceRequest('/deviceauth/token', { device_auth_id: id, user_code: code }, device.controller.signal); }
+        catch (error) { if (!this.live(userId, device)) return; continue; }
+        if (res.status === 429 || res.status >= 500) continue;
         if (!this.live(userId, device)) return;
         if (res.status === 403 || res.status === 404) continue;
         if (!res.ok) throw new Error(`ChatGPT rejected sign-in (${res.status}).`);
@@ -79,12 +80,12 @@ export class Auth {
     if (!saved) throw new Error('Sign in with ChatGPT first.');
     if (saved.expiresAt > Date.now() + 120_000) return saved;
     const pending = this.refreshes.get(userId); if (pending) return pending;
-    const epoch = this.epochs.get(userId) ?? 0;
     const task = (async () => {
       const token = await this.token({ grant_type: 'refresh_token', client_id: this.clientId, refresh_token: saved.refreshToken, scope: 'openid profile email' });
       const next = await this.accountFromToken(userId, token, saved);
       await this.write(userId, async () => {
-        if ((this.epochs.get(userId) ?? 0) !== epoch || !(await this.store.get(userId))) throw new Error('Connection changed. Try again.');
+        const current = await this.store.get(userId);
+        if (!current || current.refreshToken !== saved.refreshToken || current.accessToken !== saved.accessToken) throw new Error('Connection changed. Try again.');
         await this.store.updateTokens(userId, next);
       });
       return next;
@@ -99,8 +100,10 @@ export class Auth {
     const identity = claims['https://api.openai.com/auth'] as { chatgpt_account_id?: string; chatgpt_plan_type?: string } | undefined;
     const accountId = identity?.chatgpt_account_id ?? saved?.accountId;
     if (!accountId) throw new Error('ChatGPT returned no account ID.');
+    const lifetime = token.expires_in ?? 3600;
+    if (!Number.isFinite(lifetime) || lifetime <= 0) throw new Error('ChatGPT returned an invalid token lifetime.');
     return { userId, accessToken: token.access_token, refreshToken: token.refresh_token ?? saved!.refreshToken,
-      expiresAt: Date.now() + (token.expires_in ?? 3600) * 1000, accountId,
+      expiresAt: Date.now() + lifetime * 1000, accountId,
       email: typeof claims.email === 'string' ? claims.email : saved?.email, plan: identity?.chatgpt_plan_type ?? saved?.plan };
   }
   private deviceRequest(path: string, body: Record<string, string>, signal?: AbortSignal) {

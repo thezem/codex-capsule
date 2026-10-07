@@ -2,27 +2,17 @@
 
 ## Install
 
-From this package directory:
-
 ```bash
-npm install
-npm run build
-npm pack
+npm install git+https://github.com/thezem/codex-capsule.git ai@^7 zod
 ```
 
-In your app:
-
-```bash
-npm install /path/to/hazem-codex-capsule-0.1.0.tgz ai@^7 zod
-```
-
-Or build first and use `npm install /path/to/codex-capsule`. The package is private to prevent accidental npm publishing. Keep Node backend imports separate from `/ui` browser imports.
+Git installs invoke `prepare` to compile the package automatically. While private, authenticate Git using `gh auth setup-git`. Pin a tag/commit using `#v0.2.0` or `#<commit>` when you need a fixed version. Keep Node backend imports separate from `/ui` browser imports.
 
 ## 1. Create one backend instance
 
 ```ts
-import { createCodex } from '@hazem/codex-capsule';
-import { createAesEncryption, createEncryptedFileStore } from '@hazem/codex-capsule/storage';
+import { createCodex } from '@thezem/codex-capsule';
+import { createAesEncryption, createEncryptedFileStore } from '@thezem/codex-capsule/storage';
 
 // Supply a stable 32-byte key from your keyring or secret manager.
 // Do not regenerate it at each start, put it in frontend env vars, or commit it.
@@ -39,7 +29,7 @@ For a database, implement the server-only `AccountStore` contract: `get`, `put`,
 ## 2. Add authentication routes
 
 ```ts
-import { createAuthHandler } from '@hazem/codex-capsule/http';
+import { createAuthHandler } from '@thezem/codex-capsule/http';
 const handle = createAuthHandler({
   codex,
   origin: 'https://your-app.example',
@@ -63,7 +53,7 @@ Disconnect deletes the local connection. It does not revoke a token at OpenAI or
 ## 3. Mount the optional UI
 
 ```ts
-import { createAuthTransport, mountCodexAuth } from '@hazem/codex-capsule/ui';
+import { createAuthTransport, mountCodexAuth } from '@thezem/codex-capsule/ui';
 const panel = mountCodexAuth(document.querySelector('#auth')!, {
   transport: createAuthTransport({
     baseURL: '/api/codex',
@@ -85,7 +75,7 @@ A custom `AuthTransport` can replace HTTP entirely (e.g. Electron IPC). Only ret
 ## 4. Plug in tools and chat
 
 ```ts
-import { tool } from '@hazem/codex-capsule';
+import { tool } from '@thezem/codex-capsule';
 import { z } from 'zod';
 const tools = {
   lookupOrder: tool({

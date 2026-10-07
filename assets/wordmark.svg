@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="170" viewBox="0 0 760 170" role="img" aria-labelledby="title desc">
+<title id="title">Codex Capsule</title><desc id="desc">Your account. Your tools. Your agents.</desc>
+<rect width="760" height="170" rx="24" fill="#f5f3ed"/>
+<g transform="translate(34 39)" fill="none" stroke="#294331" stroke-width="7" stroke-linecap="round"><path d="M36 8H25C8 8 8 26 8 45s0 37 17 37h11M64 8h11c17 0 17 18 17 37s0 37-17 37H64"/><path d="M32 45h36"/></g>
+<text x="166" y="79" fill="#252623" font-family="system-ui,-apple-system,Segoe UI,sans-serif" font-size="42" font-weight="700">Codex Capsule</text>
+<text x="168" y="117" fill="#62695e" font-family="system-ui,-apple-system,Segoe UI,sans-serif" font-size="20">Your account. Your tools. Your agents.</text>
+</svg>

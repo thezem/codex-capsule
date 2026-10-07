@@ -27,10 +27,12 @@ export function createEncryptedFileStore(options: {
   /** Optional migration of a single existing demo account, otherwise files are hashed per user. */
   singleAccount?: { userId: string; filename: string };
 }): AccountStore {
+  if (!options.directory || !options.encryption) throw new Error('Provide a storage directory and encryption implementation.');
   const path = (userId: string) => {
+    if (typeof userId !== 'string' || !userId.trim()) throw new Error('A nonempty app userId is required.');
     if (options.singleAccount) {
       if (userId !== options.singleAccount.userId) throw new Error('This store is configured for one account.');
-      if (options.singleAccount.filename !== options.singleAccount.filename.replace(/[/\\]/g, '') || options.singleAccount.filename === '..') throw new Error('Account filename must be a filename only.');
+      if (options.singleAccount.filename !== options.singleAccount.filename.replace(/[/\\]/g, '') || ['', '.', '..'].includes(options.singleAccount.filename)) throw new Error('Account filename must be a filename only.');
       return join(options.directory, options.singleAccount.filename);
     }
     return join(options.directory, `${createHash('sha256').update(userId).digest('hex')}.json`);
@@ -43,7 +45,9 @@ export function createEncryptedFileStore(options: {
   const get = async (userId: string): Promise<Account | null> => {
     try {
       const envelope = JSON.parse(await readFile(path(userId), 'utf8')) as { ciphertext: string };
+      if (typeof envelope.ciphertext !== 'string') throw new Error('Invalid encrypted account envelope.');
       const account = JSON.parse(await options.encryption.decrypt(Buffer.from(envelope.ciphertext, 'base64'))) as Account;
+      if (!account || typeof account.accessToken !== 'string' || typeof account.refreshToken !== 'string' || !Number.isFinite(account.expiresAt)) throw new Error('Invalid account data.');
       if (account.userId !== userId) throw new Error('Account owner mismatch.');
       return account;
     } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null; throw new Error('Could not unlock the saved account. Check the encryption key or keyring.'); }

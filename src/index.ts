@@ -26,21 +26,24 @@ export function createCodex(config: CodexConfig) {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new Error('timeoutMs must be positive.');
   const fetcher = config.fetch ?? globalThis.fetch.bind(globalThis);
   const auth = new Auth(config.store, fetcher, issuer, config.clientId ?? 'app_EMoamEEZ73f0CkXaXp7hrann');
+  const requireUser = (userId: string) => { if (typeof userId !== 'string' || !userId.trim()) throw new Error('A nonempty app userId is required.'); return userId; };
   const authHeaders = (account: Awaited<ReturnType<typeof auth.fresh>>) => ({
     Authorization: `Bearer ${account.accessToken}`,
     ...(account.accountId ? { 'chatgpt-account-id': account.accountId } : {}),
     originator: 'codex_cli_rs',
   });
   function model(userId: string, slug: string) {
-    if (!userId || !slug) throw new Error('userId and model are required.');
+    if (!requireUser(userId) || !slug) throw new Error('userId and model are required.');
     return createOpenAI({ baseURL: endpoint, apiKey: 'provided-by-capsule', fetch: async (_url, init) => {
+      const signal = init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
+      signal.throwIfAborted();
       const account = await auth.fresh(userId);
+      signal.throwIfAborted();
       const request = JSON.parse(String(init?.body));
       // Codex accepts streaming Responses with client-supplied history only.
       request.instructions ||= 'Answer clearly and helpfully.';
       request.store = false; request.stream = true;
       delete request.max_output_tokens;
-      const signal = init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
       const response = await fetcher(`${endpoint}/responses`, {
         method: 'POST', redirect: 'error', signal,
         headers: { ...authHeaders(account), 'Content-Type': 'application/json', Accept: 'text/event-stream',
@@ -57,18 +60,22 @@ export function createCodex(config: CodexConfig) {
   }
   return {
     auth: {
-      start: (userId: string) => auth.start(userId),
-      session: (userId: string) => auth.session(userId),
-      cancel: (userId: string) => auth.cancel(userId),
-      disconnect: (userId: string) => auth.disconnect(userId),
+      start: (userId: string) => auth.start(requireUser(userId)),
+      session: (userId: string) => auth.session(requireUser(userId)),
+      cancel: (userId: string) => auth.cancel(requireUser(userId)),
+      disconnect: (userId: string) => auth.disconnect(requireUser(userId)),
     },
     async models(userId: string, options: { includeHidden?: boolean; signal?: AbortSignal } = {}): Promise<CodexModel[]> {
+      requireUser(userId);
+      options.signal?.throwIfAborted();
       const account = await auth.fresh(userId);
+      options.signal?.throwIfAborted();
       const url = new URL(`${endpoint}/models`); url.searchParams.set('client_version', config.clientVersion ?? '0.159.2');
       const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000);
       const res = await fetcher(url, { headers: authHeaders(account), redirect: 'error', signal });
       if (!res.ok) { await res.body?.cancel(); throw new Error(`Could not list Codex models (${res.status}).`); }
       const data = await res.json() as { models: { slug: string; display_name: string; visibility: string }[] };
+      if (!Array.isArray(data.models) || data.models.some(m => !m || typeof m.slug !== 'string' || typeof m.display_name !== 'string')) throw new Error('Codex returned an invalid model catalog.');
       return data.models.filter(m => options.includeHidden || m.visibility === 'list').map(m => ({ slug: m.slug, displayName: m.display_name }));
     },
     model,
