@@ -124,7 +124,7 @@ Use streaming operations with this backend. `generateText` is not supported by t
 
 ## Defaults and ownership
 
-`createCodex({ store, endpoint?, issuer?, clientId?, clientVersion?, fetch?, timeoutMs? })`:
+`createCodex({ store, endpoint?, issuer?, clientId?, clientVersion?, fetch?, timeoutMs?, modelCatalogCacheTtlMs?, modelCatalogCacheMaxAccounts? })`:
 
 - endpoint: `https://chatgpt.com/backend-api/codex`
 - issuer: `https://auth.openai.com`
@@ -132,6 +132,7 @@ Use streaming operations with this backend. `generateText` is not supported by t
 - model catalog version: `0.159.2` (request metadata, no CLI dependency)
 - inference timeout: 180 seconds; auth HTTP timeout: 30 seconds
 - chat: Standard speed, low reasoning effort, five steps, no automatic retries
+- Catalogs include nullable `contextWindow` and `maxContextWindow`; see README for cache/refresh/cancellation semantics.
 - `models(userId, { includeHidden: true })` can inspect the full catalog; hidden entries are not proof of callable models
 
 Capsule owns OAuth device polling, verified ID-token identity claims, refresh coordination in one process, Codex request normalization, and AI SDK integration. It forces `stream: true` and `store: false`, adds fallback instructions, and removes `max_output_tokens`, which this backend rejects. `store: false` is API response storage behavior, not a zero-retention promise.

@@ -21,9 +21,20 @@ export interface AuthSession {
   url?: string;
   error?: string;
 }
-export interface CodexModel { slug: string; displayName: string }
+export interface CodexModel {
+  slug: string;
+  displayName: string;
+  /** Default context window reported by the catalog; unknown is null. */
+  contextWindow: number | null;
+  /** Advertised maximum, which may require opt-in; unknown is null. */
+  maxContextWindow: number | null;
+}
 export interface CodexConfig {
   store: AccountStore;
+  /** Per-account catalog TTL. Default 60000 ms; 0 disables caching/coalescing. */
+  modelCatalogCacheTtlMs?: number;
+  /** Maximum cached or in-flight account catalogs. Default 100. */
+  modelCatalogCacheMaxAccounts?: number;
   /** Default https://chatgpt.com/backend-api/codex; includes /responses and /models. */
   endpoint?: string;
   clientVersion?: string;

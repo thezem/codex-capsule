@@ -84,6 +84,41 @@ if (session.status === 'connected') {
 
 The user opens the verification page and enters the code. Device-code authorization must be enabled in their ChatGPT security settings. Browser responses contain public connection information, never access or refresh tokens.
 
+## Model capacity and catalog caching
+
+`models()` returns `{ slug, displayName, contextWindow, maxContextWindow }`.
+Capacity fields are positive safe integer token counts, or `null` when the backend
+omits them or supplies invalid values. `contextWindow` is the default reported
+window; `maxContextWindow` is an advertised maximum and does not establish that an
+experimental larger window is enabled. The capsule does not enforce a context budget.
+
+Catalogs are cached per app user/account for 60 seconds and concurrent discovery
+calls share one request. Reuse your backend's capsule instance to benefit from this
+process-local cache; it is not shared between workers or persisted to storage.
+
+```ts
+const codex = createCodex({
+  store,
+  modelCatalogCacheTtlMs: 60_000,       // 0 disables cache and request coalescing
+  modelCatalogCacheMaxAccounts: 100,   // bounds settled and in-flight catalogs
+});
+const visible = await codex.models(userId);
+const all = await codex.models(userId, { includeHidden: true });
+const fresh = await codex.models(userId, { refresh: true, signal });
+```
+
+Visible/hidden lists share a full catalog but are filtered independently. Returned
+objects are copies. `refresh: true` bypasses a settled cache entry and still joins
+an already-running discovery. Every call checks account credentials even on cache
+hits. Starting sign-in, disconnecting or disposing invalidates relevant entries
+and aborts their pending discovery. Discovery failures are never cached.
+
+Cancelling one caller detaches that caller without aborting other waiters. A shared
+read-only request may continue until its 20-second timeout and populate the cache
+even if all callers detach. At the account limit, settled entries are evicted first;
+if every slot is in flight, a new account receives a retryable busy error. Existing
+Fast/Standard and reasoning controls are unchanged.
+
 ## Plug in MCP servers
 
 Connect an MCP server with `@ai-sdk/mcp`, call `await client.tools()`, then pass the result to `codex.chat({ tools })`. See the [MCP integration guide](docs/MCP.md) for connection, authentication, cleanup, and combining tools.

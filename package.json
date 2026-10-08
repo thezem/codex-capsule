@@ -48,7 +48,8 @@
     "prepare": "npm run build",
     "verify": "npm run check && node scripts/verify-package.mjs",
     "verify:auth": "node scripts/auth-e2e.mjs",
-    "verify:live": "node scripts/live-e2e.mjs"
+    "verify:live": "node scripts/live-e2e.mjs",
+    "verify:models": "npm run build && node scripts/models-e2e.mjs"
   },
   "peerDependencies": {
     "ai": "^7.0.130"

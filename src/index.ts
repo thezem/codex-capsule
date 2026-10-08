@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { createOpenAI } from '@ai-sdk/openai';
 import { streamText, stepCountIs, type ToolSet, type ModelMessage } from 'ai';
 import { Auth } from './auth.js';
+import { createCatalog, type CatalogOptions } from './catalog.js';
+export type { CatalogOptions } from './catalog.js';
 import type { CodexConfig, CodexModel } from './types.js';
 export type { Account, AccountStore, AuthSession, CodexConfig, CodexModel, Encryption } from './types.js';
 export { tool, stepCountIs } from 'ai';
@@ -38,6 +40,11 @@ export function createCodex(config: CodexConfig) {
     ...(account.accountId ? { 'chatgpt-account-id': account.accountId } : {}),
     originator: 'codex_cli_rs',
   });
+  const ttlMs = config.modelCatalogCacheTtlMs ?? 60000;
+  const maxAccounts = config.modelCatalogCacheMaxAccounts ?? 100;
+  if (!Number.isSafeInteger(ttlMs) || ttlMs < 0) throw new Error('modelCatalogCacheTtlMs must be a nonnegative safe integer.');
+  if (!Number.isSafeInteger(maxAccounts) || maxAccounts < 1) throw new Error('modelCatalogCacheMaxAccounts must be a positive safe integer.');
+  const catalog = createCatalog({ fresh: id => auth.fresh(id), fetcher, endpoint, clientVersion: config.clientVersion ?? '0.159.2', headers: authHeaders, ttlMs, maxAccounts });
   function model(userId: string, slug: string, controls: ModelControls = {}) {
     if (controls.speed !== undefined && !['standard', 'fast'].includes(controls.speed)) throw new Error('speed must be standard or fast.');
     if (controls.reasoningEffort !== undefined && !['none', 'low', 'medium', 'high', 'xhigh', 'max'].includes(controls.reasoningEffort)) throw new Error('Invalid reasoningEffort.');
@@ -74,24 +81,12 @@ export function createCodex(config: CodexConfig) {
   }
   return {
     auth: {
-      start: (userId: string) => auth.start(requireUser(userId)),
+      start: (userId: string) => { requireUser(userId); catalog.invalidate(userId); return auth.start(userId); },
       session: (userId: string) => auth.session(requireUser(userId)),
       cancel: (userId: string) => auth.cancel(requireUser(userId)),
-      disconnect: (userId: string) => auth.disconnect(requireUser(userId)),
+      disconnect: (userId: string) => { requireUser(userId); catalog.invalidate(userId); return auth.disconnect(userId); },
     },
-    async models(userId: string, options: { includeHidden?: boolean; signal?: AbortSignal } = {}): Promise<CodexModel[]> {
-      requireUser(userId);
-      options.signal?.throwIfAborted();
-      const account = await auth.fresh(userId);
-      options.signal?.throwIfAborted();
-      const url = new URL(`${endpoint}/models`); url.searchParams.set('client_version', config.clientVersion ?? '0.159.2');
-      const signal = options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000);
-      const res = await fetcher(url, { headers: authHeaders(account), redirect: 'error', signal });
-      if (!res.ok) { await res.body?.cancel(); throw new Error(`Could not list Codex models (${res.status}).`); }
-      const data = await res.json() as { models: { slug: string; display_name: string; visibility: string }[] };
-      if (!Array.isArray(data.models) || data.models.some(m => !m || typeof m.slug !== 'string' || typeof m.display_name !== 'string')) throw new Error('Codex returned an invalid model catalog.');
-      return data.models.filter(m => options.includeHidden || m.visibility === 'list').map(m => ({ slug: m.slug, displayName: m.display_name }));
-    },
+    models: (userId: string, options: CatalogOptions = {}): Promise<CodexModel[]> => catalog.models(requireUser(userId), options),
     model,
     chat<T extends ToolSet>(options: ChatOptions<T>) {
       const maxSteps = options.maxSteps ?? 5;
@@ -104,7 +99,7 @@ export function createCodex(config: CodexConfig) {
         providerOptions: { openai: { store: false, reasoningEffort: options.reasoningEffort ?? 'low' } },
       });
     },
-    dispose: () => auth.dispose(),
+    dispose: () => { catalog.dispose(); auth.dispose(); },
   };
 }
 export type Codex = ReturnType<typeof createCodex>;

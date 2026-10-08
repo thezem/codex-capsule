@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Preserve default and maximum catalog context-window metadata with nullable validated counts.
+- Add configurable, bounded per-account model catalog caching and concurrent discovery coalescing.
+- Support explicit catalog refresh, independent caller cancellation and auth/dispose invalidation.
+- Add repeatable HTTPS model-catalog verification; no live OpenAI entitlement claims.
+
 ## 0.3.0
 
 - Expose independent reasoning effort and Standard/Fast controls for chat and direct AI SDK models.
